@@ -44,8 +44,8 @@ jobs:
       - name: Publish installer
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.3.0
-          name: Syndesk Host v0.3.0
-          body: Redesigned Syndesk viewer with independent quality and FPS goals, adaptive 1440p streaming, and full mobile input support.
+          tag_name: v0.4.0
+          name: Syndesk Host v0.4.0
+          body: Mobile video startup fix, playback recovery, and experimental 4K streaming for high-end systems.
           files: dist/Syndesk-Host-Setup.exe
           fail_on_unmatched_files: true

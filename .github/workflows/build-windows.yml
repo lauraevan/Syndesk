@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-windows:
@@ -40,3 +40,12 @@ jobs:
           name: Syndesk-Host-Setup
           path: dist/Syndesk-Host-Setup.exe
           if-no-files-found: error
+
+      - name: Publish installer
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.0
+          name: Syndesk Host v0.1.0
+          body: Windows installer for the Syndesk secure remote desktop host.
+          files: dist/Syndesk-Host-Setup.exe
+          fail_on_unmatched_files: true

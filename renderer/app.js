@@ -38,6 +38,7 @@ let sessionConnected = false;
 let working = false;
 let activeVideoSender = null;
 let activeProfileName = "high";
+let activeStreamSettings = null;
 let profileSwitch = Promise.resolve();
 
 const STREAM_PROFILES = {
@@ -70,6 +71,55 @@ const STREAM_PROFILES = {
     degradationPreference: "maintain-resolution",
   },
 };
+
+const RESOLUTION_GOALS = {
+  540: { width: 960, height: 540 },
+  720: { width: 1280, height: 720 },
+  1080: { width: 1920, height: 1080 },
+  1440: { width: 2560, height: 1440 },
+};
+
+function normalizeStreamSettings(value) {
+  const request =
+    typeof value === "string" ? { profile: value } : value ?? {};
+  const profileName = normalizeProfile(request.profile);
+  const base = STREAM_PROFILES[profileName];
+  const resolution = RESOLUTION_GOALS[request.qualityGoal];
+  const requestedFps = Number(request.fpsGoal);
+  const fps = [24, 30, 45, 60].includes(requestedFps)
+    ? requestedFps
+    : base.fps;
+  const width = resolution?.width ?? base.width;
+  const height = resolution?.height ?? base.height;
+  const hasManualQuality = Boolean(resolution);
+  const hasManualFps = [24, 30, 45, 60].includes(requestedFps);
+  const calculatedBitrate = Math.round(width * height * fps * 0.13);
+  const bitrate =
+    hasManualQuality || hasManualFps
+      ? Math.min(28_000_000, Math.max(1_400_000, calculatedBitrate))
+      : base.bitrate;
+  return {
+    profile: profileName,
+    qualityGoal: hasManualQuality ? String(request.qualityGoal) : "auto",
+    fpsGoal: hasManualFps ? String(request.fpsGoal) : "auto",
+    width,
+    height,
+    fps,
+    bitrate,
+    degradationPreference:
+      hasManualQuality && hasManualFps
+        ? "balanced"
+        : hasManualQuality
+          ? "maintain-resolution"
+          : hasManualFps
+            ? "maintain-framerate"
+            : base.degradationPreference,
+  };
+}
+
+function streamShape(settings) {
+  return [settings.width, settings.height, settings.fps].join("x");
+}
 
 function normalizeProfile(value) {
   return Object.hasOwn(STREAM_PROFILES, value)
@@ -239,8 +289,8 @@ async function pollForSessions(generation) {
   }
 }
 
-async function captureScreen(profileName, includeAudio = true) {
-  const profile = STREAM_PROFILES[normalizeProfile(profileName)];
+async function captureScreen(settingsRequest, includeAudio = true) {
+  const profile = normalizeStreamSettings(settingsRequest);
   const source = await window.syndesk.getDisplaySource();
   const video = {
     mandatory: {
@@ -320,11 +370,12 @@ function bindControlChannel(channel) {
       ) {
         void window.syndesk.injectInput(message);
       } else if (
-        message?.t === "stream-profile" &&
+        (message?.t === "stream-profile" ||
+          message?.t === "stream-settings") &&
         typeof message.profile === "string"
       ) {
         profileSwitch = profileSwitch
-          .then(() => switchStreamProfile(message.profile))
+          .then(() => switchStreamProfile(message))
           .catch(() => undefined);
       }
     } catch {
@@ -338,8 +389,8 @@ function bindControlChannel(channel) {
   });
 }
 
-async function tuneVideoSender(sender, profileName) {
-  const profile = STREAM_PROFILES[normalizeProfile(profileName)];
+async function tuneVideoSender(sender, settingsRequest) {
+  const profile = normalizeStreamSettings(settingsRequest);
   try {
     const parameters = sender.getParameters();
     if (!parameters.encodings?.length) {
@@ -368,21 +419,23 @@ async function tuneVideoSender(sender, profileName) {
   }
 }
 
-async function switchStreamProfile(profileName) {
-  const normalized = normalizeProfile(profileName);
+async function switchStreamProfile(settingsRequest) {
+  const nextSettings = normalizeStreamSettings(settingsRequest);
   if (
-    normalized === activeProfileName ||
+    (activeStreamSettings &&
+      streamShape(nextSettings) === streamShape(activeStreamSettings)) ||
     !activeVideoSender ||
     !activeStream
   ) {
     if (activeVideoSender) {
-      await tuneVideoSender(activeVideoSender, normalized);
+      await tuneVideoSender(activeVideoSender, nextSettings);
     }
-    activeProfileName = normalized;
+    activeProfileName = nextSettings.profile;
+    activeStreamSettings = nextSettings;
     return;
   }
 
-  const replacement = await captureScreen(normalized, false);
+  const replacement = await captureScreen(nextSettings, false);
   const nextTrack = replacement.getVideoTracks()[0];
   if (!nextTrack || !activeVideoSender || !activeStream) {
     for (const track of replacement.getTracks()) track.stop();
@@ -391,13 +444,14 @@ async function switchStreamProfile(profileName) {
   nextTrack.contentHint = "detail";
   const previousTrack = activeVideoSender.track;
   await activeVideoSender.replaceTrack(nextTrack);
-  await tuneVideoSender(activeVideoSender, normalized);
+  await tuneVideoSender(activeVideoSender, nextSettings);
   if (previousTrack) {
     activeStream.removeTrack(previousTrack);
     previousTrack.stop();
   }
   activeStream.addTrack(nextTrack);
-  activeProfileName = normalized;
+  activeProfileName = nextSettings.profile;
+  activeStreamSettings = nextSettings;
 }
 
 async function acceptSession(session, generation) {
@@ -477,15 +531,16 @@ async function acceptSession(session, generation) {
       session.offerCipher,
     );
     const offer = offerPayload?.description ?? offerPayload;
-    activeProfileName = normalizeProfile(
-      offerPayload?.profile,
+    activeStreamSettings = normalizeStreamSettings(
+      offerPayload?.settings ?? offerPayload?.profile,
     );
+    activeProfileName = activeStreamSettings.profile;
     await connection.setRemoteDescription(offer);
     if (generation !== serviceGeneration) {
       throw new Error("Remote access was disabled.");
     }
 
-    activeStream = await captureScreen(activeProfileName);
+    activeStream = await captureScreen(activeStreamSettings);
     for (const track of activeStream.getVideoTracks()) {
       track.contentHint = "detail";
       const sender = connection.addTrack(
@@ -493,7 +548,7 @@ async function acceptSession(session, generation) {
         activeStream,
       );
       activeVideoSender = sender;
-      await tuneVideoSender(sender, activeProfileName);
+      await tuneVideoSender(sender, activeStreamSettings);
     }
     for (const track of activeStream.getAudioTracks()) {
       connection.addTrack(track, activeStream);
@@ -555,6 +610,7 @@ function stopSession(releaseInput = true) {
   activeStream = null;
   activeVideoSender = null;
   activeProfileName = "high";
+  activeStreamSettings = null;
   profileSwitch = Promise.resolve();
   activeSessionId = null;
   sessionConnected = false;

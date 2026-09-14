@@ -1,6 +1,6 @@
 # Syndesk Host for Windows
 
-This package contains the Windows host app for Syndesk.
+This package contains the lightweight Windows host app for Syndesk. Version 0.2 adds adaptive 540p through 1440p streaming, mobile text input, and touch-friendly controls.
 
 ## Build
 

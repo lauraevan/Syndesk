@@ -44,8 +44,8 @@ jobs:
       - name: Publish installer
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0
-          name: Syndesk Host v0.1.0
-          body: Windows installer for the Syndesk secure remote desktop host.
+          tag_name: v0.2.0
+          name: Syndesk Host v0.2.0
+          body: Lighter Windows host with adaptive 1440p streaming and full mobile input support.
           files: dist/Syndesk-Host-Setup.exe
           fail_on_unmatched_files: true

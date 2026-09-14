@@ -1,6 +1,6 @@
 {
   "name": "syndesk-host",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Windows host for Syndesk secure browser remote desktop.",
   "main": "main.cjs",
   "type": "module",
@@ -18,6 +18,10 @@
     "appId": "com.syndesk.host",
     "productName": "Syndesk Host",
     "asar": true,
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US"
+    ],
     "files": [
       "main.cjs",
       "preload.cjs",

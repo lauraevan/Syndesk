@@ -36,6 +36,46 @@ let activeStream = null;
 let activeSessionId = null;
 let sessionConnected = false;
 let working = false;
+let activeVideoSender = null;
+let activeProfileName = "high";
+let profileSwitch = Promise.resolve();
+
+const STREAM_PROFILES = {
+  "data-saver": {
+    width: 960,
+    height: 540,
+    fps: 24,
+    bitrate: 1_800_000,
+    degradationPreference: "maintain-framerate",
+  },
+  balanced: {
+    width: 1280,
+    height: 720,
+    fps: 30,
+    bitrate: 4_500_000,
+    degradationPreference: "balanced",
+  },
+  high: {
+    width: 1920,
+    height: 1080,
+    fps: 60,
+    bitrate: 14_000_000,
+    degradationPreference: "maintain-resolution",
+  },
+  ultra: {
+    width: 2560,
+    height: 1440,
+    fps: 60,
+    bitrate: 24_000_000,
+    degradationPreference: "maintain-resolution",
+  },
+};
+
+function normalizeProfile(value) {
+  return Object.hasOwn(STREAM_PROFILES, value)
+    ? value
+    : "high";
+}
 
 function setNotice(message, isError = false) {
   ui.noticeText.textContent = message;
@@ -199,28 +239,31 @@ async function pollForSessions(generation) {
   }
 }
 
-async function captureScreen() {
+async function captureScreen(profileName, includeAudio = true) {
+  const profile = STREAM_PROFILES[normalizeProfile(profileName)];
   const source = await window.syndesk.getDisplaySource();
   const video = {
     mandatory: {
       chromeMediaSource: "desktop",
       chromeMediaSourceId: source.id,
-      minWidth: 1280,
-      maxWidth: 1920,
-      minHeight: 720,
-      maxHeight: 1080,
-      minFrameRate: 30,
-      maxFrameRate: 60,
+      minWidth: 320,
+      maxWidth: profile.width,
+      minHeight: 240,
+      maxHeight: profile.height,
+      minFrameRate: 15,
+      maxFrameRate: profile.fps,
     },
   };
   try {
     return await navigator.mediaDevices.getUserMedia({
-      audio: {
-        mandatory: {
-          chromeMediaSource: "desktop",
-          chromeMediaSourceId: source.id,
-        },
-      },
+      audio: includeAudio
+        ? {
+            mandatory: {
+              chromeMediaSource: "desktop",
+              chromeMediaSourceId: source.id,
+            },
+          }
+        : false,
       video,
     });
   } catch {
@@ -272,9 +315,17 @@ function bindControlChannel(channel) {
         message &&
         (message.t === "pointer" ||
           message.t === "key" ||
+          message.t === "text" ||
           message.t === "release-all")
       ) {
         void window.syndesk.injectInput(message);
+      } else if (
+        message?.t === "stream-profile" &&
+        typeof message.profile === "string"
+      ) {
+        profileSwitch = profileSwitch
+          .then(() => switchStreamProfile(message.profile))
+          .catch(() => undefined);
       }
     } catch {
       // Malformed control packets are ignored.
@@ -287,20 +338,66 @@ function bindControlChannel(channel) {
   });
 }
 
-async function tuneVideoSender(sender) {
+async function tuneVideoSender(sender, profileName) {
+  const profile = STREAM_PROFILES[normalizeProfile(profileName)];
   try {
     const parameters = sender.getParameters();
     if (!parameters.encodings?.length) {
       parameters.encodings = [{}];
     }
-    parameters.encodings[0].maxBitrate = 15_000_000;
-    parameters.encodings[0].maxFramerate = 60;
+    parameters.encodings[0].maxBitrate = profile.bitrate;
+    parameters.encodings[0].maxFramerate = profile.fps;
+    parameters.encodings[0].scaleResolutionDownBy = 1;
+    parameters.encodings[0].priority = "high";
+    parameters.encodings[0].networkPriority = "high";
     parameters.degradationPreference =
-      "maintain-resolution";
+      profile.degradationPreference;
     await sender.setParameters(parameters);
   } catch {
-    // Chromium will retain its adaptive defaults.
+    try {
+      const fallback = sender.getParameters();
+      if (!fallback.encodings?.length) fallback.encodings = [{}];
+      fallback.encodings[0].maxBitrate = profile.bitrate;
+      fallback.encodings[0].maxFramerate = profile.fps;
+      fallback.degradationPreference =
+        profile.degradationPreference;
+      await sender.setParameters(fallback);
+    } catch {
+      // Chromium will retain its adaptive defaults.
+    }
   }
+}
+
+async function switchStreamProfile(profileName) {
+  const normalized = normalizeProfile(profileName);
+  if (
+    normalized === activeProfileName ||
+    !activeVideoSender ||
+    !activeStream
+  ) {
+    if (activeVideoSender) {
+      await tuneVideoSender(activeVideoSender, normalized);
+    }
+    activeProfileName = normalized;
+    return;
+  }
+
+  const replacement = await captureScreen(normalized, false);
+  const nextTrack = replacement.getVideoTracks()[0];
+  if (!nextTrack || !activeVideoSender || !activeStream) {
+    for (const track of replacement.getTracks()) track.stop();
+    return;
+  }
+  nextTrack.contentHint = "detail";
+  const previousTrack = activeVideoSender.track;
+  await activeVideoSender.replaceTrack(nextTrack);
+  await tuneVideoSender(activeVideoSender, normalized);
+  if (previousTrack) {
+    activeStream.removeTrack(previousTrack);
+    previousTrack.stop();
+  }
+  activeStream.addTrack(nextTrack);
+  activeProfileName = normalized;
 }
 
 async function acceptSession(session, generation) {
@@ -324,6 +421,8 @@ async function acceptSession(session, generation) {
     const connection = new RTCPeerConnection({
       iceServers: config.iceServers,
       bundlePolicy: "max-bundle",
+      rtcpMuxPolicy: "require",
+      iceCandidatePoolSize: 4,
     });
     activeConnection = connection;
     render();
@@ -372,24 +471,29 @@ async function acceptSession(session, generation) {
       },
     );
 
-    const offer = await decryptSignal(
+    const offerPayload = await decryptSignal(
       secrets.signalKey,
       secrets.locator,
       session.offerCipher,
+    );
+    const offer = offerPayload?.description ?? offerPayload;
+    activeProfileName = normalizeProfile(
+      offerPayload?.profile,
     );
     await connection.setRemoteDescription(offer);
     if (generation !== serviceGeneration) {
       throw new Error("Remote access was disabled.");
     }
 
-    activeStream = await captureScreen();
+    activeStream = await captureScreen(activeProfileName);
     for (const track of activeStream.getVideoTracks()) {
-      track.contentHint = "motion";
+      track.contentHint = "detail";
       const sender = connection.addTrack(
         track,
         activeStream,
       );
-      await tuneVideoSender(sender);
+      activeVideoSender = sender;
+      await tuneVideoSender(sender, activeProfileName);
     }
     for (const track of activeStream.getAudioTracks()) {
       connection.addTrack(track, activeStream);
@@ -449,6 +553,9 @@ function stopSession(releaseInput = true) {
     connection.close();
   }
   activeStream = null;
+  activeVideoSender = null;
+  activeProfileName = "high";
+  profileSwitch = Promise.resolve();
   activeSessionId = null;
   sessionConnected = false;
   render();

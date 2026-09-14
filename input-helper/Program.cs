@@ -17,6 +17,7 @@ internal static class Program
     private const uint MouseAbsolute = 0x8000;
     private const uint KeyUp = 0x0002;
     private const uint KeyExtended = 0x0001;
+    private const uint KeyUnicode = 0x0004;
     private const int WheelDelta = 120;
 
     private static readonly HashSet<ushort> PressedKeys = [];
@@ -116,6 +117,18 @@ internal static class Program
         if (type == "release-all")
         {
             ReleaseAll();
+            return;
+        }
+
+        if (type == "text")
+        {
+            if (
+                message.TryGetProperty("text", out var textProperty) &&
+                textProperty.GetString() is { } text
+            )
+            {
+                SendText(text);
+            }
             return;
         }
 
@@ -432,6 +445,38 @@ internal static class Program
             inputs,
             Marshal.SizeOf<INPUT>()
         );
+    }
+
+    private static void SendText(string text)
+    {
+        foreach (var character in text.Take(256))
+        {
+            SendUnicode(character, false);
+            SendUnicode(character, true);
+        }
+    }
+
+    private static void SendUnicode(char character, bool keyUp)
+    {
+        var inputs = new[]
+        {
+            new INPUT
+            {
+                type = InputKeyboard,
+                data = new InputUnion
+                {
+                    keyboard = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = character,
+                        dwFlags = KeyUnicode | (keyUp ? KeyUp : 0),
+                        time = 0,
+                        dwExtraInfo = UIntPtr.Zero,
+                    },
+                },
+            },
+        };
+        _ = SendInput(1, inputs, Marshal.SizeOf<INPUT>());
     }
 
     private static double ReadDouble(

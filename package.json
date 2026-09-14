@@ -1,0 +1,47 @@
+{
+  "name": "syndesk-host",
+  "version": "0.1.0",
+  "description": "Windows host for Syndesk secure browser remote desktop.",
+  "main": "main.cjs",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:input": "powershell -ExecutionPolicy Bypass -File scripts/build-input.ps1",
+    "dist": "npm run build:input && electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "40.10.2",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "com.syndesk.host",
+    "productName": "Syndesk Host",
+    "asar": true,
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "renderer/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "input-helper/bin/publish/Syndesk.InputHost.exe",
+        "to": "input/Syndesk.InputHost.exe"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico",
+      "artifactName": "Syndesk-Host-Setup.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Syndesk Host"
+    }
+  }
+}

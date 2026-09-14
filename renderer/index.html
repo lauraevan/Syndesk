@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://syndesk.cb88sggy8y.chatgpt.site; media-src blob:; object-src 'none'; base-uri 'none'; frame-src 'none'"
+    />
+    <title>Syndesk Host</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="titlebar">
+      <div class="titlebar-brand">
+        <span class="brand-mark" aria-hidden="true">
+          <i></i><i></i>
+        </span>
+        <span>syndesk</span>
+      </div>
+      <div class="window-actions">
+        <button
+          id="minimize-window"
+          type="button"
+          aria-label="Minimize"
+        >
+          <span></span>
+        </button>
+        <button
+          id="hide-window"
+          type="button"
+          aria-label="Close to tray"
+        >
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+    </div>
+
+    <main>
+      <section class="heading">
+        <div id="state-label" class="state-label">
+          <span class="state-dot"></span>
+          Remote access is off
+        </div>
+        <h1 id="heading-title">Make this PC reachable.</h1>
+        <p id="heading-copy">
+          Activate Syndesk once, then connect securely from
+          your browser wherever you are.
+        </p>
+      </section>
+
+      <section id="key-card" class="key-card is-hidden">
+        <div class="key-card-top">
+          <span>Secure access key</span>
+          <span class="key-badge">160-bit</span>
+        </div>
+        <button
+          id="copy-key"
+          class="key-value"
+          type="button"
+          title="Copy access key"
+        >
+          <code id="access-key"></code>
+          <span id="copy-label">Copy</span>
+        </button>
+        <p>
+          Anyone with this key can control this PC. Keep it
+          private.
+        </p>
+      </section>
+
+      <section id="session-card" class="session-card is-hidden">
+        <div class="session-icon">
+          <span></span>
+        </div>
+        <div>
+          <strong>Browser connected</strong>
+          <p>Screen and controls are streaming directly.</p>
+        </div>
+        <button id="end-session" type="button">
+          Disconnect
+        </button>
+      </section>
+
+      <div id="notice" class="notice" role="status">
+        <span class="notice-icon">i</span>
+        <span id="notice-text">
+          Your screen stays private until remote access is
+          activated.
+        </span>
+      </div>
+
+      <div class="primary-actions">
+        <button id="activate" class="primary-button" type="button">
+          <span class="power-icon"></span>
+          Activate Syndesk
+        </button>
+        <button
+          id="deactivate"
+          class="secondary-button is-hidden"
+          type="button"
+        >
+          Disable remote access
+        </button>
+      </div>
+
+      <div id="active-actions" class="active-actions is-hidden">
+        <button id="rotate-key" type="button">
+          Generate a new key
+        </button>
+        <span></span>
+        <a
+          href="https://syndesk.cb88sggy8y.chatgpt.site"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open web portal
+        </a>
+      </div>
+
+      <footer>
+        <div>
+          <span class="footer-icon shield"></span>
+          <span>
+            <strong>Encrypted setup</strong>
+            <small>AES-256-GCM</small>
+          </span>
+        </div>
+        <div>
+          <span class="footer-icon display"></span>
+          <span>
+            <strong>Adaptive stream</strong>
+            <small>Up to 1080p · 60 fps</small>
+          </span>
+        </div>
+        <div>
+          <span class="footer-icon startup"></span>
+          <span>
+            <strong>Always available</strong>
+            <small>Starts with Windows</small>
+          </span>
+        </div>
+      </footer>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -77,6 +77,7 @@ const RESOLUTION_GOALS = {
   720: { width: 1280, height: 720 },
   1080: { width: 1920, height: 1080 },
   1440: { width: 2560, height: 1440 },
+  2160: { width: 3840, height: 2160 },
 };
 
 function normalizeStreamSettings(value) {
@@ -96,7 +97,7 @@ function normalizeStreamSettings(value) {
   const calculatedBitrate = Math.round(width * height * fps * 0.13);
   const bitrate =
     hasManualQuality || hasManualFps
-      ? Math.min(28_000_000, Math.max(1_400_000, calculatedBitrate))
+      ? Math.min(48_000_000, Math.max(1_400_000, calculatedBitrate))
       : base.bitrate;
   return {
     profile: profileName,

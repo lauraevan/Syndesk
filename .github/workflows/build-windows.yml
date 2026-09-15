@@ -44,8 +44,8 @@ jobs:
       - name: Publish installer
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.0
-          name: Syndesk Host v0.4.0
-          body: Mobile video startup fix, playback recovery, and experimental 4K streaming for high-end systems.
+          tag_name: v0.5.0
+          name: Syndesk Host v0.5.0
+          body: Mobile codec negotiation and capture-track recovery for black-screen sessions, paired with the new Material 3 Expressive web viewer.
           files: dist/Syndesk-Host-Setup.exe
           fail_on_unmatched_files: true

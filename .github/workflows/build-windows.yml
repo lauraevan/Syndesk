@@ -44,8 +44,8 @@ jobs:
       - name: Publish installer
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.6.0
-          name: Syndesk Host v0.6.0
-          body: Adds experimental 90 and 120 FPS streaming plus the new mobile pointer, scroll, typing, and multitouch game control modes.
+          tag_name: v0.7.0
+          name: Syndesk Host v0.7.0
+          body: Lower-latency iPad streaming with reduced buffering, faster adaptive quality, motion-first encoding, and persistent left or right tap selection.
           files: dist/Syndesk-Host-Setup.exe
           fail_on_unmatched_files: true

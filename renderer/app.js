@@ -60,14 +60,14 @@ const STREAM_PROFILES = {
     width: 1920,
     height: 1080,
     fps: 60,
-    bitrate: 14_000_000,
-    degradationPreference: "maintain-resolution",
+    bitrate: 10_000_000,
+    degradationPreference: "maintain-framerate",
   },
   ultra: {
     width: 2560,
     height: 1440,
     fps: 60,
-    bitrate: 24_000_000,
+    bitrate: 18_000_000,
     degradationPreference: "maintain-resolution",
   },
 };
@@ -94,10 +94,10 @@ function normalizeStreamSettings(value) {
   const height = resolution?.height ?? base.height;
   const hasManualQuality = Boolean(resolution);
   const hasManualFps = [24, 30, 45, 60, 90, 120].includes(requestedFps);
-  const calculatedBitrate = Math.round(width * height * fps * 0.13);
+  const calculatedBitrate = Math.round(width * height * fps * 0.09);
   const bitrate =
     hasManualQuality || hasManualFps
-      ? Math.min(72_000_000, Math.max(1_400_000, calculatedBitrate))
+      ? Math.min(48_000_000, Math.max(1_400_000, calculatedBitrate))
       : base.bitrate;
   return {
     profile: profileName,

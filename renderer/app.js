@@ -87,17 +87,17 @@ function normalizeStreamSettings(value) {
   const base = STREAM_PROFILES[profileName];
   const resolution = RESOLUTION_GOALS[request.qualityGoal];
   const requestedFps = Number(request.fpsGoal);
-  const fps = [24, 30, 45, 60].includes(requestedFps)
+  const fps = [24, 30, 45, 60, 90, 120].includes(requestedFps)
     ? requestedFps
     : base.fps;
   const width = resolution?.width ?? base.width;
   const height = resolution?.height ?? base.height;
   const hasManualQuality = Boolean(resolution);
-  const hasManualFps = [24, 30, 45, 60].includes(requestedFps);
+  const hasManualFps = [24, 30, 45, 60, 90, 120].includes(requestedFps);
   const calculatedBitrate = Math.round(width * height * fps * 0.13);
   const bitrate =
     hasManualQuality || hasManualFps
-      ? Math.min(48_000_000, Math.max(1_400_000, calculatedBitrate))
+      ? Math.min(72_000_000, Math.max(1_400_000, calculatedBitrate))
       : base.bitrate;
   return {
     profile: profileName,
@@ -108,7 +108,9 @@ function normalizeStreamSettings(value) {
     fps,
     bitrate,
     degradationPreference:
-      hasManualQuality && hasManualFps
+      hasManualFps && fps > 60
+        ? "maintain-framerate"
+        : hasManualQuality && hasManualFps
         ? "balanced"
         : hasManualQuality
           ? "maintain-resolution"
@@ -408,7 +410,7 @@ async function restartVideoStream(
     for (const track of replacement.getTracks()) track.stop();
     return;
   }
-  nextTrack.contentHint = "detail";
+  nextTrack.contentHint = nextSettings.fps > 60 ? "motion" : "detail";
   const previousTrack = activeVideoSender.track;
   await activeVideoSender.replaceTrack(nextTrack);
   await tuneVideoSender(activeVideoSender, nextSettings);
@@ -528,7 +530,8 @@ async function acceptSession(session, generation) {
 
     activeStream = await captureScreen(activeStreamSettings);
     for (const track of activeStream.getVideoTracks()) {
-      track.contentHint = "detail";
+      track.contentHint =
+        activeStreamSettings.fps > 60 ? "motion" : "detail";
       const sender = connection.addTrack(
         track,
         activeStream,

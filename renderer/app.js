@@ -325,33 +325,6 @@ async function captureScreen(settingsRequest, includeAudio = true) {
   }
 }
 
-function preferHardwareFriendlyCodec(connection) {
-  const capabilities =
-    globalThis.RTCRtpSender?.getCapabilities?.("video");
-  if (!capabilities?.codecs) return;
-  const codecs = [...capabilities.codecs].sort(
-    (left, right) => {
-      const rank = (codec) => {
-        const mime = codec.mimeType.toLowerCase();
-        if (mime === "video/h264") return 0;
-        if (mime === "video/vp9") return 1;
-        if (mime === "video/av1") return 2;
-        if (mime === "video/vp8") return 3;
-        return 4;
-      };
-      return rank(left) - rank(right);
-    },
-  );
-  for (const transceiver of connection.getTransceivers()) {
-    if (
-      transceiver.receiver.track.kind === "video" &&
-      transceiver.setCodecPreferences
-    ) {
-      transceiver.setCodecPreferences(codecs);
-    }
-  }
-}
-
 function bindControlChannel(channel) {
   channel.addEventListener("message", (event) => {
     if (
@@ -377,6 +350,10 @@ function bindControlChannel(channel) {
       ) {
         profileSwitch = profileSwitch
           .then(() => switchStreamProfile(message))
+          .catch(() => undefined);
+      } else if (message?.t === "restart-video") {
+        profileSwitch = profileSwitch
+          .then(() => restartVideoStream())
           .catch(() => undefined);
       }
     } catch {
@@ -420,22 +397,11 @@ async function tuneVideoSender(sender, settingsRequest) {
   }
 }
 
-async function switchStreamProfile(settingsRequest) {
+async function restartVideoStream(
+  settingsRequest = activeStreamSettings,
+) {
   const nextSettings = normalizeStreamSettings(settingsRequest);
-  if (
-    (activeStreamSettings &&
-      streamShape(nextSettings) === streamShape(activeStreamSettings)) ||
-    !activeVideoSender ||
-    !activeStream
-  ) {
-    if (activeVideoSender) {
-      await tuneVideoSender(activeVideoSender, nextSettings);
-    }
-    activeProfileName = nextSettings.profile;
-    activeStreamSettings = nextSettings;
-    return;
-  }
-
+  if (!activeVideoSender || !activeStream) return;
   const replacement = await captureScreen(nextSettings, false);
   const nextTrack = replacement.getVideoTracks()[0];
   if (!nextTrack || !activeVideoSender || !activeStream) {
@@ -453,6 +419,25 @@ async function switchStreamProfile(settingsRequest) {
   activeStream.addTrack(nextTrack);
   activeProfileName = nextSettings.profile;
   activeStreamSettings = nextSettings;
+}
+
+async function switchStreamProfile(settingsRequest) {
+  const nextSettings = normalizeStreamSettings(settingsRequest);
+  if (
+    (activeStreamSettings &&
+      streamShape(nextSettings) === streamShape(activeStreamSettings)) ||
+    !activeVideoSender ||
+    !activeStream
+  ) {
+    if (activeVideoSender) {
+      await tuneVideoSender(activeVideoSender, nextSettings);
+    }
+    activeProfileName = nextSettings.profile;
+    activeStreamSettings = nextSettings;
+    return;
+  }
+
+  await restartVideoStream(nextSettings);
 }
 
 async function acceptSession(session, generation) {
@@ -554,7 +539,8 @@ async function acceptSession(session, generation) {
     for (const track of activeStream.getAudioTracks()) {
       connection.addTrack(track, activeStream);
     }
-    preferHardwareFriendlyCodec(connection);
+    // Preserve the viewing browser's codec order. Forcing Electron's
+    // preferred H.264 profile can create an undecodable black stream on iOS.
 
     const answer = await connection.createAnswer();
     await connection.setLocalDescription(answer);

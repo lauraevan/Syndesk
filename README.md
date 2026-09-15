@@ -1,6 +1,6 @@
 # Syndesk Host for Windows
 
-This package contains the lightweight Windows host app for Syndesk. Version 0.6 adds experimental 90 and 120 FPS capture, multitouch game keys, dedicated pointer and scroll modes, and an iPad text-input mode. It preserves the viewer browser's preferred video codec and can restart the capture track when a phone connects without receiving frames.
+This package contains the lightweight Windows host app for Syndesk. Version 0.7 reduces live latency with lower video buffering, faster adaptive quality changes, motion-first 60 FPS encoding, and more efficient bitrate targets. Mobile pointer mode now has persistent left-click and right-click selection alongside scroll, typing, and game controls.
 
 ## Build
 

@@ -1,6 +1,6 @@
 # Syndesk Host for Windows
 
-This package contains the lightweight Windows host app for Syndesk. Version 0.4 fixes mobile video startup, adds experimental 4K capture for high-end systems, supports independent resolution and frame-rate goals, and keeps full mobile input controls.
+This package contains the lightweight Windows host app for Syndesk. Version 0.5 preserves the viewer browser's preferred video codec for wider mobile compatibility and can restart the capture track when a phone connects without receiving frames. It also includes experimental 4K capture for high-end systems, independent resolution and frame-rate goals, and full mobile input controls.
 
 ## Build
 
